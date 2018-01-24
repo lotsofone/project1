@@ -31,6 +31,7 @@ function main() {
 
   varying highp vec2 vTextureCoord;
   varying highp vec3 vLighting;
+  varying lowp float outsuf;
 
   void main(void) {
     gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
@@ -39,18 +40,20 @@ function main() {
     // Apply lighting effect
 
     highp vec3 ambientLight = vec3(0.3, 0, 0);
-    highp vec3 directionalLightColor = vec3(1, 1.3, 1.3);
+    highp vec3 directionalLightColor = vec3(0.5, 0.8, 0.8);
     highp vec3 directionalVector = normalize(vec3(0.85, 0.8, 0.75));
 
     highp vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
 
     highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
     vLighting = ambientLight + (directionalLightColor * directional);
+    outsuf = -dot((uModelViewMatrix * aVertexPosition).xyz,(uModelViewMatrix * vec4(aVertexNormal, 1.0)).xyz-(uModelViewMatrix * vec4(0.0,0.0,0.0,1.0)).xyz);
   }
   `;
   const fsSource = `
     varying highp vec2 vTextureCoord;
     varying highp vec3 vLighting;
+    varying lowp float outsuf;
 
     uniform sampler2D uSampler;
 
@@ -58,8 +61,14 @@ function main() {
       highp vec4 texelColor = texture2D(uSampler, vTextureCoord);
 
       gl_FragColor = vec4(texelColor.rgb * vLighting, texelColor.a);
+      if(outsuf<=0.0){
+        gl_FragColor.a=0.0;
+      }
     }
   `;
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.enable(gl.BLEND);
+  //gl.enable(gl.DEPTH_TEST);
   const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
   const programInfo = {
     program: shaderProgram,
@@ -356,7 +365,7 @@ function drawScene(gl, programInfo, buffers, texture, deltaTime) {
   mat4.rotate(modelViewMatrix,  // destination matrix
     modelViewMatrix,  // matrix to rotate
     squareRotation,   // amount to rotate in radians
-    [1, 4, 1]);       // axis to rotate around
+    [1, -4, 1]);       // axis to rotate around
   mat4.translate(modelViewMatrix,     // destination matrix
     modelViewMatrix,     // matrix to translate
     [-3,-3,0]);  // amount to translate
@@ -458,7 +467,7 @@ function drawScene(gl, programInfo, buffers, texture, deltaTime) {
     [0, 1,0]);       // axis to rotate around
   mat4.translate(modelViewMatrix,     // destination matrix
     modelViewMatrix,     // matrix to translate
-    [-5,0,0]);  // amount to translate
+    [-2,-2,0]);  // amount to translate
   gl.uniformMatrix4fv(
     programInfo.uniformLocations.projectionMatrix,
     false,
