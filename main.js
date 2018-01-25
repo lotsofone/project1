@@ -1,5 +1,42 @@
+// will set to true when video can be copied to texture
+var copyVideo = false;
+
+function setupVideo(url) {
+  const video = document.createElement('video');
+
+  var playing = false;
+  var timeupdate = false;
+
+  video.autoplay = true;
+  video.muted = true;
+  video.loop = true;
+
+  // Waiting for these 2 events ensures
+  // there is data in the video
+
+  video.addEventListener('playing', function() {
+     playing = true;
+     checkReady();
+  }, true);
+
+  video.addEventListener('timeupdate', function() {
+     timeupdate = true;
+     checkReady();
+  }, true);
+
+  video.src = url;
+  video.play();
+
+  function checkReady() {
+    if (playing && timeupdate) {
+      copyVideo = true;
+    }
+  }
+
+  return video;
+}
+
 var squareRotation = 0.0;
-main();
 //
 // start here
 //
@@ -21,39 +58,36 @@ function main() {
 
   //shader program
   const vsSource = `
-  attribute vec4 aVertexPosition;
-  attribute vec3 aVertexNormal;
-  attribute vec2 aTextureCoord;
+    attribute vec4 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    attribute vec2 aTextureCoord;
 
-  uniform mat4 uNormalMatrix;
-  uniform mat4 uModelViewMatrix;
-  uniform mat4 uProjectionMatrix;
+    uniform mat4 uNormalMatrix;
+    uniform mat4 uModelViewMatrix;
+    uniform mat4 uProjectionMatrix;
 
-  varying highp vec2 vTextureCoord;
-  varying highp vec3 vLighting;
-  varying lowp float outsuf;
+    varying highp vec2 vTextureCoord;
+    varying highp vec3 vLighting;
 
-  void main(void) {
-    gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-    vTextureCoord = aTextureCoord;
+    void main(void) {
+      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+      vTextureCoord = aTextureCoord;
 
-    // Apply lighting effect
+      // Apply lighting effect
 
-    highp vec3 ambientLight = vec3(0.3, 0, 0);
-    highp vec3 directionalLightColor = vec3(0.5, 0.8, 0.8);
-    highp vec3 directionalVector = normalize(vec3(0.85, 0.8, 0.75));
+      highp vec3 ambientLight = vec3(0.3, 0, 0);
+      highp vec3 directionalLightColor = vec3(0.5, 0.9, 0.9);
+      highp vec3 directionalVector = normalize(vec3(0.85, 0.8, 0.75));
 
-    highp vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
+      highp vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
 
-    highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
-    vLighting = ambientLight + (directionalLightColor * directional);
-    outsuf = -dot((uModelViewMatrix * aVertexPosition).xyz,(uModelViewMatrix * vec4(aVertexNormal, 1.0)).xyz-(uModelViewMatrix * vec4(0.0,0.0,0.0,1.0)).xyz);
-  }
+      highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
+      vLighting = ambientLight + (directionalLightColor * directional);
+    }
   `;
   const fsSource = `
     varying highp vec2 vTextureCoord;
     varying highp vec3 vLighting;
-    varying lowp float outsuf;
 
     uniform sampler2D uSampler;
 
@@ -61,13 +95,12 @@ function main() {
       highp vec4 texelColor = texture2D(uSampler, vTextureCoord);
 
       gl_FragColor = vec4(texelColor.rgb * vLighting, texelColor.a);
-      if(outsuf<=0.0){
-        gl_FragColor.a=0.0;
-      }
     }
   `;
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  gl.enable(gl.BLEND);
+  //gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  //gl.enable(gl.BLEND);
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
   //gl.enable(gl.DEPTH_TEST);
   const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
   const programInfo = {
@@ -85,16 +118,21 @@ function main() {
     },
   };
   bfrs = initBuffers(gl);
-  const texture = loadTexture(gl, 'grass_side.png');
+  const video = setupVideo('Firefox.mp4');
+  const texture = initTexture(gl, 'Firefox.mp4');
   var then = 0;
   // Draw the scene repeatedly
   function render(now) {
     now *= 0.001;  // convert to seconds
     const deltaTime = now - then;
     then = now;
-  
+
+    if (copyVideo) {
+      updateTexture(gl, texture, video);
+    }
+
     drawScene(gl, programInfo, bfrs, texture, deltaTime);
-  
+
     requestAnimationFrame(render);
   }
   requestAnimationFrame(render);
@@ -365,10 +403,10 @@ function drawScene(gl, programInfo, buffers, texture, deltaTime) {
   mat4.rotate(modelViewMatrix,  // destination matrix
     modelViewMatrix,  // matrix to rotate
     squareRotation,   // amount to rotate in radians
-    [1, -4, 1]);       // axis to rotate around
+    [1, -3, 1]);       // axis to rotate around
   mat4.translate(modelViewMatrix,     // destination matrix
     modelViewMatrix,     // matrix to translate
-    [-3,-3,0]);  // amount to translate
+    [-3,-1,0]);  // amount to translate
   const normalMatrix = mat4.create();
   mat4.inverse(normalMatrix, modelViewMatrix);
   mat4.transpose(normalMatrix, normalMatrix);
@@ -464,7 +502,11 @@ function drawScene(gl, programInfo, buffers, texture, deltaTime) {
   mat4.rotate(modelViewMatrix,  // destination matrix
     modelViewMatrix,  // matrix to rotate
     squareRotation,   // amount to rotate in radians
-    [0, 1,0]);       // axis to rotate around
+    [0, 1, 0]);       // axis to rotate around
+  mat4.rotate(modelViewMatrix,  // destination matrix
+    modelViewMatrix,  // matrix to rotate
+    0.7,   // amount to rotate in radians
+    [0, 0, 1]);       // axis to rotate around
   mat4.translate(modelViewMatrix,     // destination matrix
     modelViewMatrix,     // matrix to translate
     [-2,-2,0]);  // amount to translate
@@ -489,6 +531,43 @@ function drawScene(gl, programInfo, buffers, texture, deltaTime) {
     gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
   }/**/
 
+}
+function initTexture(gl, url) {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // Because video has to be download over the internet
+  // they might take a moment until it's ready so
+  // put a single pixel in the texture so we can
+  // use it immediately.
+  const level = 0;
+  const internalFormat = gl.RGBA;
+  const width = 1;
+  const height = 1;
+  const border = 0;
+  const srcFormat = gl.RGBA;
+  const srcType = gl.UNSIGNED_BYTE;
+  const pixel = new Uint8Array([0, 0, 255, 255]);  // opaque blue
+  gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                width, height, border, srcFormat, srcType,
+                pixel);
+
+  // Turn off mips and set  wrapping to clamp to edge so it
+  // will work regardless of the dimensions of the video.
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
+  return texture;
+}
+function updateTexture(gl, texture, video) {
+  const level = 0;
+  const internalFormat = gl.RGBA;
+  const srcFormat = gl.RGBA;
+  const srcType = gl.UNSIGNED_BYTE;
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                srcFormat, srcType, video);
 }
 function loadTexture(gl, url) {
   const texture = gl.createTexture();
@@ -540,3 +619,5 @@ function loadTexture(gl, url) {
 function isPowerOf2(value) {
   return (value & (value - 1)) == 0;
 }
+
+main();
